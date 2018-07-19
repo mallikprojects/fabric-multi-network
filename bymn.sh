@@ -35,7 +35,7 @@ export VERBOSE=false
 # Print the usage message
 function printHelp() {
   echo "Usage: "
-  echo "  byfn.sh <mode> [-c <channel name>] [-t <timeout>] [-d <delay>] [-f <docker-compose-file>] [-s <dbtype>] [-l <language>] [-i <imagetag>] [-v]"
+  echo "  bymn.sh <mode> [-c <channel name>] [-t <timeout>] [-d <delay>] [-f <docker-compose-file>] [-s <dbtype>] [-l <language>] [-i <imagetag>] [-v]"
   echo "    <mode> - one of 'up', 'down', 'restart', 'generate' or 'upgrade'"
   echo "      - 'up' - bring up the network with docker stack deploy"
   echo "      - 'down' - clear the network with docker stack rm"
@@ -52,17 +52,17 @@ function printHelp() {
   echo "Typically, one would first generate the required certificates and "
   echo "genesis block, then bring up the network. e.g.:"
   echo
-  echo "	byfn.sh generate -c mychannel"
-  echo "	byfn.sh up -c mychannel -s couchdb"
-  echo "        byfn.sh up -c mychannel -s couchdb -i 1.2.x"
-  echo "	byfn.sh up -l node"
-  echo "	byfn.sh down -c mychannel"
-  echo "        byfn.sh upgrade -c mychannel"
+  echo "	bymn.sh generate -c mychannel"
+  echo "	bymn.sh up -c mychannel -s couchdb"
+  echo "        bymn.sh up -c mychannel -s couchdb -i 1.2.x"
+  echo "	bymn.sh up -l node"
+  echo "	bymn.sh down -c mychannel"
+  echo "        bymn.sh upgrade -c mychannel"
   echo
   echo "Taking all defaults:"
-  echo "	byfn.sh generate"
-  echo "	byfn.sh up"
-  echo "	byfn.sh down"
+  echo "	bymn.sh generate"
+  echo "	bymn.sh up"
+  echo "	bymn.sh down"
 }
 
 # Ask user for confirmation to proceed
@@ -131,13 +131,13 @@ function checkPrereqs() {
   for UNSUPPORTED_VERSION in $BLACKLISTED_VERSIONS; do
     echo "$LOCAL_VERSION" | grep -q $UNSUPPORTED_VERSION
     if [ $? -eq 0 ]; then
-      echo "ERROR! Local Fabric binary version of $LOCAL_VERSION does not match this newer version of BYFN and is unsupported. Either move to a later version of Fabric or checkout an earlier version of fabric-samples."
+      echo "ERROR! Local Fabric binary version of $LOCAL_VERSION does not match this newer version of bymn and is unsupported. Either move to a later version of Fabric or checkout an earlier version of fabric-samples."
       exit 1
     fi
 
     echo "$DOCKER_IMAGE_VERSION" | grep -q $UNSUPPORTED_VERSION
     if [ $? -eq 0 ]; then
-      echo "ERROR! Fabric Docker image version of $DOCKER_IMAGE_VERSION does not match this newer version of BYFN and is unsupported. Either move to a later version of Fabric or checkout an earlier version of fabric-samples."
+      echo "ERROR! Fabric Docker image version of $DOCKER_IMAGE_VERSION does not match this newer version of bymn and is unsupported. Either move to a later version of Fabric or checkout an earlier version of fabric-samples."
       exit 1
     fi
   done
@@ -152,92 +152,37 @@ function networkUp() {
     replacePrivateKey
     generateChannelArtifacts
   fi
-  if [ "${IF_COUCHDB}" == "couchdb" ]; then
-    IMAGE_TAG=$IMAGETAG docker-compose -f $COMPOSE_FILE -f $COMPOSE_FILE_COUCH up -d 2>&1
-  else
-    IMAGE_TAG=$IMAGETAG docker-compose -f $COMPOSE_FILE up -d 2>&1
-  fi
+  IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $COMPOSE_FILE fabric 2>&1
   if [ $? -ne 0 ]; then
     echo "ERROR !!!! Unable to start network"
     exit 1
   fi
-  # now run the end to end script
-  docker exec cli scripts/script.sh $CHANNEL_NAME $CLI_DELAY $LANGUAGE $CLI_TIMEOUT $VERBOSE
+  
+}
+
+function execCli() {
+  checkPrereqs
+  
+  docker exec org1cli scripts/script.sh $CHANNEL_NAME $CLI_DELAY $LANGUAGE $CLI_TIMEOUT $VERBOSE
   if [ $? -ne 0 ]; then
     echo "ERROR !!!! Test failed"
     exit 1
   fi
 }
 
-# Upgrade the network components which are at version 1.1.x to 1.2.x
-# Stop the orderer and peers, backup the ledger for orderer and peers, cleanup chaincode containers and images
-# and relaunch the orderer and peers with latest tag
-function upgradeNetwork() {
-  docker inspect -f '{{.Config.Volumes}}' orderer.example.com | grep -q '/var/hyperledger/production/orderer'
-  if [ $? -ne 0 ]; then
-    echo "ERROR !!!! This network does not appear to be using volumes for its ledgers, did you start from fabric-samples >= v1.1.x?"
-    exit 1
-  fi
 
-  LEDGERS_BACKUP=./ledgers-backup
 
-  # create ledger-backup directory
-  mkdir -p $LEDGERS_BACKUP
-
-  export IMAGE_TAG=$IMAGETAG
-  if [ "${IF_COUCHDB}" == "couchdb" ]; then
-    COMPOSE_FILES="-f $COMPOSE_FILE -f $COMPOSE_FILE_COUCH"
-  else
-    COMPOSE_FILES="-f $COMPOSE_FILE"
-  fi
-
-  # removing the cli container
-  docker-compose $COMPOSE_FILES stop cli
-  docker-compose $COMPOSE_FILES up -d --no-deps cli
-
-  echo "Upgrading orderer"
-  docker-compose $COMPOSE_FILES stop orderer.example.com
-  docker cp -a orderer.example.com:/var/hyperledger/production/orderer $LEDGERS_BACKUP/orderer.example.com
-  docker-compose $COMPOSE_FILES up -d --no-deps orderer.example.com
-
-  for PEER in peer0.org1.example.com peer1.org1.example.com peer0.org2.example.com peer1.org2.example.com; do
-    echo "Upgrading peer $PEER"
-
-    # Stop the peer and backup its ledger
-    docker-compose $COMPOSE_FILES stop $PEER
-    docker cp -a $PEER:/var/hyperledger/production $LEDGERS_BACKUP/$PEER/
-
-    # Remove any old containers and images for this peer
-    CC_CONTAINERS=$(docker ps | grep dev-$PEER | awk '{print $1}')
-    if [ -n "$CC_CONTAINERS" ]; then
-      docker rm -f $CC_CONTAINERS
-    fi
-    CC_IMAGES=$(docker images | grep dev-$PEER | awk '{print $1}')
-    if [ -n "$CC_IMAGES" ]; then
-      docker rmi -f $CC_IMAGES
-    fi
-
-    # Start the peer again
-    docker-compose $COMPOSE_FILES up -d --no-deps $PEER
-  done
-
-  docker exec cli scripts/upgrade_to_v12.sh $CHANNEL_NAME $CLI_DELAY $LANGUAGE $CLI_TIMEOUT $VERBOSE
-  if [ $? -ne 0 ]; then
-    echo "ERROR !!!! Test failed"
-    exit 1
-  fi
-}
 
 # Tear down running network
 function networkDown() {
   # stop org3 containers also in addition to org1 and org2, in case we were running sample to add org3
-  docker-compose -f $COMPOSE_FILE -f $COMPOSE_FILE_COUCH -f $COMPOSE_FILE_ORG3 down --volumes --remove-orphans
+  docker stack rm fabric
 
   # Don't remove the generated artifacts -- note, the ledgers are always removed
   if [ "$MODE" != "restart" ]; then
     # Bring down the network, deleting the volumes
     #Delete any ledger backups
-    docker run -v $PWD:/tmp/first-network --rm hyperledger/fabric-tools:$IMAGETAG rm -Rf /tmp/first-network/ledgers-backup
+    docker run -v $PWD:/tmp/fabric-multi-network --rm hyperledger/fabric-tools:$IMAGETAG rm -Rf /tmp/first-network/ledgers-backup
     #Cleanup the chaincode containers
     clearContainers
     #Cleanup images
@@ -245,7 +190,8 @@ function networkDown() {
     # remove orderer block and other channel configuration transactions and certs
     rm -rf channel-artifacts/*.block channel-artifacts/*.tx crypto-config ./org3-artifacts/crypto-config/ channel-artifacts/org3.json
     # remove the docker-compose yaml file that was customized to the example
-    rm -f docker-compose-e2e.yaml
+    rm -f docker-compose-org1.yaml
+    rm -f docker-compose-org2.yaml
   fi
 }
 
@@ -262,8 +208,9 @@ function replacePrivateKey() {
     OPTS="-i"
   fi
 
-  # Copy the template to the file that will be modified to add the private key
-  cp docker-compose-e2e-template.yaml docker-compose-e2e.yaml
+  # Copy the org1 & org2 templates to the files that will be modified to add the private key
+  cp docker-compose-org1-template.yaml docker-compose-org1.yaml
+  cp docker-compose-org2-template.yaml docker-compose-org2.yaml
 
   # The next steps will replace the template's contents with the
   # actual values of the private key file names for the two CAs.
@@ -271,14 +218,15 @@ function replacePrivateKey() {
   cd crypto-config/peerOrganizations/org1.example.com/ca/
   PRIV_KEY=$(ls *_sk)
   cd "$CURRENT_DIR"
-  sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" docker-compose-e2e.yaml
+  sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" docker-compose-org1.yaml
   cd crypto-config/peerOrganizations/org2.example.com/ca/
   PRIV_KEY=$(ls *_sk)
   cd "$CURRENT_DIR"
-  sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" docker-compose-e2e.yaml
+  sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" docker-compose-org2.yaml
   # If MacOSX, remove the temporary backup of the docker-compose file
   if [ "$ARCH" == "Darwin" ]; then
-    rm docker-compose-e2e.yamlt
+    rm docker-compose-org1.yamlt
+    rm docker-compose-org2.yamlt
   fi
 }
 
@@ -463,10 +411,14 @@ elif [ "$MODE" == "generate" ]; then
   EXPMODE="Generating certs and genesis block"
 elif [ "$MODE" == "upgrade" ]; then
   EXPMODE="Upgrading the network"
+elif [ "$MODE" == "execcli" ]; then
+  EXPMODE="Executing Cli scripts"
 else
   printHelp
   exit 1
 fi
+
+ROLE=$2
 
 while getopts "h?c:t:d:f:s:l:i:v" opt; do
   case "$opt" in
@@ -527,6 +479,8 @@ elif [ "${MODE}" == "restart" ]; then ## Restart the network
   networkUp
 elif [ "${MODE}" == "upgrade" ]; then ## Upgrade the network from version 1.1.x to 1.2.x
   upgradeNetwork
+elif [ "${MODE}" == "execcli" ]; then ## execute cli scripts
+  execCli
 else
   printHelp
   exit 1
