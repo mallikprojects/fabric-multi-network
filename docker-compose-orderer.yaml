@@ -19,7 +19,7 @@ networks:
 services:
   orderer:
     container_name: orderer
-    image: hyperledger/fabric-orderer:latest
+    image: hyperledger/fabric-orderer:$IMAGE_TAG
     environment:
       - ORDERER_GENERAL_LOGLEVEL=DEBUG
       - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0

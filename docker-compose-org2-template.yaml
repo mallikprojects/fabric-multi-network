@@ -11,10 +11,13 @@ volumes:
   
 networks:
   bymn:
+    driver: overlay
+    attachable: true
+
 
 services:
   ca2:
-    image: hyperledger/fabric-ca:latest
+    image: hyperledger/fabric-ca:$IMAGE_TAG
     environment:
       - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
       - FABRIC_CA_SERVER_CA_NAME=ca.org2.example.com
@@ -43,13 +46,14 @@ services:
 
   org2peer0:
     container_name: org2peer0
-    image: hyperledger/fabric-peer:latest
+    image: hyperledger/fabric-peer:$IMAGE_TAG
     environment:
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       # the following setting starts chaincode containers on the same
       # bridge network as the peers
       # https://docs.docker.com/compose/networking/
-      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=${COMPOSE_PROJECT_NAME}_bymn
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_bymn
+      - CORE_PEER_CHAINCODELISTENADDRESS=org2peer0:7052
       #- CORE_LOGGING_LEVEL=INFO
       - CORE_LOGGING_LEVEL=DEBUG
       - CORE_PEER_TLS_ENABLED=true
@@ -61,7 +65,7 @@ services:
       - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
       - CORE_PEER_ID=peer0.org2.example.com
       - CORE_PEER_ADDRESS=org2peer0:7051
-      - CORE_PEER_GOSSIP_BOOTSTRAP=org2peer0:7051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=org2peer1:8051
       - CORE_PEER_GOSSIP_EXTERNALENDPOINT=org2peer0:7051
       - CORE_PEER_LOCALMSPID=Org2MSP
 
@@ -72,7 +76,7 @@ services:
         - /var/run/:/host/var/run/
         - ./crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/msp:/etc/hyperledger/fabric/msp
         - ./crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls:/etc/hyperledger/fabric/tls
-        - ./crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/ca:/etc/hyperledger/fabric/ca
+        #- ./crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/ca:/etc/hyperledger/fabric/ca
         - peer0.org2.example.com:/var/hyperledger/production
     
     deploy:
@@ -94,15 +98,16 @@ services:
 
 org2peer1:
     container_name: org2peer1
-    image: hyperledger/fabric-peer:latest
+    image: hyperledger/fabric-peer:$IMAGE_TAG
     environment:
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       # the following setting starts chaincode containers on the same
       # bridge network as the peers
       # https://docs.docker.com/compose/networking/
-      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=${COMPOSE_PROJECT_NAME}_bymn
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_bymn
       #- CORE_LOGGING_LEVEL=INFO
       - CORE_LOGGING_LEVEL=DEBUG
+      - CORE_PEER_CHAINCODELISTENADDRESS=org2peer1:7052
       - CORE_PEER_TLS_ENABLED=true
       - CORE_PEER_GOSSIP_USELEADERELECTION=true
       - CORE_PEER_GOSSIP_ORGLEADER=false
@@ -112,7 +117,7 @@ org2peer1:
       - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
       - CORE_PEER_ID=peer1.org2.example.com
       - CORE_PEER_ADDRESS=org2peer1:8051
-      - CORE_PEER_GOSSIP_BOOTSTRAP=org2peer1:8051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=org2peer0:7051
       - CORE_PEER_GOSSIP_EXTERNALENDPOINT=org2peer1:8051
       - CORE_PEER_LOCALMSPID=Org2MSP
 
@@ -123,7 +128,7 @@ org2peer1:
         - /var/run/:/host/var/run/
         - ./crypto-config/peerOrganizations/org2.example.com/peers/peer1.org2.example.com/msp:/etc/hyperledger/fabric/msp
         - ./crypto-config/peerOrganizations/org2.example.com/peers/peer1.org2.example.com/tls:/etc/hyperledger/fabric/tls
-        - ./crypto-config/peerOrganizations/org2.example.com/peers/peer1.org2.example.com/ca:/etc/hyperledger/fabric/ca
+        #- ./crypto-config/peerOrganizations/org2.example.com/peers/peer1.org2.example.com/ca:/etc/hyperledger/fabric/ca
         - peer1.org2.example.com:/var/hyperledger/production
     
     deploy:
@@ -177,5 +182,5 @@ org2cli:
         - ./crypto-config:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/
         - ./scripts:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/
         - ./channel-artifacts:/opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts
-   networks:
+    networks:
       - bymn
