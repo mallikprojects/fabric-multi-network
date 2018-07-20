@@ -11,8 +11,9 @@ volumes:
   
 networks:
   bymn:
-    driver: overlay
-    attachable: true
+    external:
+      name: fabric
+    
 
 
 services:
@@ -52,8 +53,8 @@ services:
       # the following setting starts chaincode containers on the same
       # bridge network as the peers
       # https://docs.docker.com/compose/networking/
-      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_bymn
-      - CORE_PEER_CHAINCODELISTENADDRESS=org2peer0:7052
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
       #- CORE_LOGGING_LEVEL=INFO
       - CORE_LOGGING_LEVEL=DEBUG
       - CORE_PEER_TLS_ENABLED=true
@@ -63,7 +64,7 @@ services:
       - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
       - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
       - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
-      - CORE_PEER_ID=peer0.org2.example.com
+      - CORE_PEER_ID=org2peer0
       - CORE_PEER_ADDRESS=org2peer0:7051
       - CORE_PEER_GOSSIP_BOOTSTRAP=org2peer1:8051
       - CORE_PEER_GOSSIP_EXTERNALENDPOINT=org2peer0:7051
@@ -96,7 +97,7 @@ services:
     networks:
       - bymn
 
-org2peer1:
+  org2peer1:
     container_name: org2peer1
     image: hyperledger/fabric-peer:$IMAGE_TAG
     environment:
@@ -104,10 +105,10 @@ org2peer1:
       # the following setting starts chaincode containers on the same
       # bridge network as the peers
       # https://docs.docker.com/compose/networking/
-      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_bymn
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric
       #- CORE_LOGGING_LEVEL=INFO
       - CORE_LOGGING_LEVEL=DEBUG
-      - CORE_PEER_CHAINCODELISTENADDRESS=org2peer1:7052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
       - CORE_PEER_TLS_ENABLED=true
       - CORE_PEER_GOSSIP_USELEADERELECTION=true
       - CORE_PEER_GOSSIP_ORGLEADER=false
@@ -115,7 +116,7 @@ org2peer1:
       - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
       - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
       - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
-      - CORE_PEER_ID=peer1.org2.example.com
+      - CORE_PEER_ID=org2peer1
       - CORE_PEER_ADDRESS=org2peer1:8051
       - CORE_PEER_GOSSIP_BOOTSTRAP=org2peer0:7051
       - CORE_PEER_GOSSIP_EXTERNALENDPOINT=org2peer1:8051
@@ -148,7 +149,7 @@ org2peer1:
     networks:
       - bymn
 
-org2cli:
+  org2cli:
     container_name: org2cli
     image: hyperledger/fabric-tools:latest
     tty: true
@@ -166,7 +167,7 @@ org2cli:
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       - CORE_LOGGING_LEVEL=DEBUG
       #- CORE_LOGGING_LEVEL=INFO
-      - CORE_PEER_ID=org2cli
+      - CORE_PEER_ID=cli
       - CORE_PEER_ADDRESS=org2peer0:7051
       - CORE_PEER_LOCALMSPID=Org2MSP
       - CORE_PEER_TLS_ENABLED=true
