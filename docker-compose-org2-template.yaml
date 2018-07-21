@@ -12,7 +12,7 @@ volumes:
 networks:
   bymn:
     external:
-      name: fabric
+      name: $SWARM_NETWORK
     
 
 
@@ -34,16 +34,20 @@ services:
     deploy:
             mode: replicated
             replicas: 1
+            restart_policy:
+              condition: on-failure
             placement:
                 constraints:
-                    - node.hostname == org2
+                    - node.hostname == $ORG2_HOSTNAME
 
     ports:
      - published: 7054
        target: 7054
        mode: host
     networks:
-      - bymn
+      bymn:
+        aliases:
+          - ca.org2.example.com
 
   org2peer0:
     container_name: org2peer0
@@ -83,9 +87,11 @@ services:
     deploy:
             mode: replicated
             replicas: 1
+            restart_policy:
+              condition: on-failure
             placement:
                 constraints:
-                    - node.hostname == org2
+                    - node.hostname == $ORG2_HOSTNAME
 
     ports:
             - published: 7051
@@ -95,7 +101,9 @@ services:
               target: 7053
               mode: host
     networks:
-      - bymn
+      bymn:
+        aliases:
+          - peer0.org2.example.com
 
   org2peer1:
     container_name: org2peer1
@@ -135,9 +143,11 @@ services:
     deploy:
             mode: replicated
             replicas: 1
+            restart_policy:
+              condition: on-failure
             placement:
                 constraints:
-                    - node.hostname == org2
+                    - node.hostname == $ORG2_HOSTNAME
 
     ports:
             - published: 8051
@@ -147,7 +157,9 @@ services:
               target: 7053
               mode: host
     networks:
-      - bymn
+      bymn:
+        aliases:
+          - peer1.org2.example.com
 
   org2cli:
     container_name: org2cli
@@ -157,9 +169,11 @@ services:
     deploy:
             mode: replicated
             replicas: 1
+            restart_policy:
+              condition: on-failure
             placement:
                 constraints:
-                    - node.hostname == org2
+                    - node.hostname == $ORG2_HOSTNAME
 
     environment:
 

@@ -31,6 +31,11 @@
 export PATH=${PWD}/../bin:${PWD}:$PATH
 export FABRIC_CFG_PATH=${PWD}
 export VERBOSE=false
+export ORDERER_HOSTNAME="orderer-node"
+export ORG1_HOSTNAME="org1"
+export ORG2_HOSTNAME="org2"
+export SWARM_NETWORK="fabric"
+export DOCKER_STACK="fabric"
 
 # Print the usage message
 function printHelp() {
@@ -152,7 +157,7 @@ function networkUp() {
     replacePrivateKey
     generateChannelArtifacts
   fi
-  IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $COMPOSE_FILE fabric 2>&1
+  IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $COMPOSE_FILE $DOCKER_STACK 2>&1
   if [ $? -ne 0 ]; then
     echo "ERROR !!!! Unable to start network"
     exit 1
@@ -176,7 +181,7 @@ function execCli() {
 # Tear down running network
 function networkDown() {
   # stop org3 containers also in addition to org1 and org2, in case we were running sample to add org3
-  docker stack rm fabric
+  docker stack rm $DOCKER_STACK
 
   # Don't remove the generated artifacts -- note, the ledgers are always removed
   if [ "$MODE" != "restart" ]; then
@@ -393,7 +398,7 @@ COMPOSE_FILE_ORG3=docker-compose-org3.yaml
 # use golang as the default language for chaincode
 LANGUAGE=golang
 # default image tag
-IMAGETAG="latest"
+IMAGETAG="1.1.0"
 # Parse commandline args
 if [ "$1" = "-m" ]; then # supports old usage, muscle memory is powerful!
   shift

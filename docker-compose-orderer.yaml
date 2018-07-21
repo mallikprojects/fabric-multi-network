@@ -16,7 +16,7 @@ volumes:
 networks:
   bymn:
     external:
-      name: fabric
+      name: $SWARM_NETWORK
 
 services:
   orderer:
@@ -44,9 +44,11 @@ services:
     deploy:
             mode: replicated
             replicas: 1
+            restart_policy:
+              condition: on-failure
             placement:
                 constraints:
-                    - node.hostname == orderer-node 
+                    - node.hostname == $ORDERER_HOSTNAME 
 
     ports:
       - published: 7050
