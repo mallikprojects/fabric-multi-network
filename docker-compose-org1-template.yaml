@@ -66,10 +66,10 @@ services:
       - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
       - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
       - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
-      - CORE_PEER_ID=org1peer0
-      - CORE_PEER_ADDRESS=org1peer0:7051
-      - CORE_PEER_GOSSIP_BOOTSTRAP=org1peer1:7051
-      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=org1peer0:7051
+      - CORE_PEER_ID=peer0.org1.example.com
+      - CORE_PEER_ADDRESS=peer0.org1.example.com:7051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.org1.example.com:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.org1.example.com:7051
       - CORE_PEER_LOCALMSPID=Org1MSP
 
     working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
@@ -123,10 +123,10 @@ services:
       - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
       - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
       - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
-      - CORE_PEER_ID=org1peer1
-      - CORE_PEER_ADDRESS=org1peer1:8051
-      - CORE_PEER_GOSSIP_BOOTSTRAP=org1peer0:7051
-      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=org1peer1:8051
+      - CORE_PEER_ID=peer1.org1.example.com
+      - CORE_PEER_ADDRESS=peer1.org1.example.com:8051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.org1.example.com:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.org1.example.com:8051
       - CORE_PEER_LOCALMSPID=Org1MSP
 
     working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
@@ -181,7 +181,7 @@ services:
       - CORE_LOGGING_LEVEL=DEBUG
       #- CORE_LOGGING_LEVEL=INFO
       - CORE_PEER_ID=cli
-      - CORE_PEER_ADDRESS=org1peer0:7051
+      - CORE_PEER_ADDRESS=peer0.org1.example.com:7051
       - CORE_PEER_LOCALMSPID=Org1MSP
       - CORE_PEER_TLS_ENABLED=true
       - CORE_PEER_TLS_CERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/server.crt
