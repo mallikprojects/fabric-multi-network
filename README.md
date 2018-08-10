@@ -1,7 +1,3 @@
-## Build Your First Network (BYFN)
+## Build Your First Multi Network (BYMN)
 
-The directions for using this are documented in the Hyperledger Fabric
-["Build Your First Network"](http://hyperledger-fabric.readthedocs.io/en/latest/build_network.html) tutorial.
-
-*NOTE:* After navigating to the documentation, choose the documentation version that matches your version of Fabric
-
+For documentation , follow this link [Hyperledger Fabric on Multiple Hosts using Docker Swarm and Compose](https://medium.com/@malliksarvepalli/hyperledger-fabric-on-multiple-hosts-using-docker-swarm-and-compose-f4b70c64fa7d)
