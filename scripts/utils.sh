@@ -271,7 +271,7 @@ parsePeerConnectionParameters() {
   while [ "$#" -gt 0 ]; do
     PEER="peer$1.org$2"
     PEERS="$PEERS $PEER"
-    PEER_CONN_PARMS="$PEER_CONN_PARMS --peerAddresses $PEER:7051"
+    PEER_CONN_PARMS="$PEER_CONN_PARMS --peerAddresses $PEER.example.com:7051"
     if [ -z "$CORE_PEER_TLS_ENABLED" -o "$CORE_PEER_TLS_ENABLED" = "true" ]; then
       TLSINFO=$(eval echo "--tlsRootCertFiles \$PEER$1_ORG$2_CA")
       PEER_CONN_PARMS="$PEER_CONN_PARMS $TLSINFO"
@@ -296,12 +296,12 @@ chaincodeInvoke() {
   # it using the "-o" option
   if [ -z "$CORE_PEER_TLS_ENABLED" -o "$CORE_PEER_TLS_ENABLED" = "false" ]; then
     set -x
-    peer chaincode invoke -o orderer.example.com:7050 -C $CHANNEL_NAME -n mycc -c '{"Args":["invoke","a","b","10"]}' >&log.txt
+    peer chaincode invoke -o orderer.example.com:7050 -C $CHANNEL_NAME -n mycc $PEER_CONN_PARMS -c '{"Args":["invoke","a","b","10"]}' >&log.txt
     res=$?
     set +x
   else
     set -x
-    peer chaincode invoke -o orderer.example.com:7050 --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA -C $CHANNEL_NAME -n mycc -c '{"Args":["invoke","a","b","10"]}' >&log.txt
+    peer chaincode invoke -o orderer.example.com:7050 --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA -C $CHANNEL_NAME -n mycc $PEER_CONN_PARMS -c '{"Args":["invoke","a","b","10"]}' >&log.txt
     res=$?
     set +x
   fi
