@@ -193,10 +193,15 @@ function networkDown() {
     #Cleanup images
     removeUnwantedImages
     # remove orderer block and other channel configuration transactions and certs
-    rm -rf channel-artifacts/*.block channel-artifacts/*.tx crypto-config ./org3-artifacts/crypto-config/ channel-artifacts/org3.json
+    #rm -rf channel-artifacts/*.block channel-artifacts/*.tx crypto-config ./org3-artifacts/crypto-config/ channel-artifacts/org3.json
     # remove the docker-compose yaml file that was customized to the example
-    rm -f docker-compose-org1.yaml
-    rm -f docker-compose-org2.yaml
+    #rm -f docker-compose-org1.yaml
+    #rm -f docker-compose-org2.yaml
+    docker system prune
+    docker volume prune
+    #docker swarm leave -f
+    docker rmi $(docker images -a -q) -f
+    docker rm $(docker ps -aq) -f
   fi
 }
 
