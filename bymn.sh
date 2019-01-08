@@ -36,6 +36,13 @@ export ORG1_HOSTNAME="node2"
 export ORG2_HOSTNAME="node3"
 export SWARM_NETWORK="fabric"
 export DOCKER_STACK="fabric"
+export KAFKA0_HOSTNAME="node1"
+export KAFKA1_HOSTNAME="node2"
+export KAFKA2_HOSTNAME="nod3"
+export KAFKA3_HOSTNAME="node4"
+export ZK0_HOSTNAME="node1"
+export ZK1_HOSTNAME="node2"
+export ZK2_HOSTNAME="node3"
 
 NETWORK_STATUS=0
 # Print the usage message
@@ -159,12 +166,43 @@ function networkUp() {
     replacePrivateKey
     generateChannelArtifacts
   fi
-  IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $COMPOSE_FILE $DOCKER_STACK 2>&1
-  if [ $? -ne 0 ]; then
-    echo "ERROR !!!! Unable to start network"
-    exit 1
-  fi
-  
+  CURRENT_DIR=$PWD
+  ZK_DIR=$PWD/zk_scripts
+  startDockerServices $PWD/zk_scripts
+  sleep 30
+  startDockerServices $PWD/kafka_scripts
+  sleep 60
+  startDockerServices $PWD/orderer_scripts
+  sleep 30
+  startDockerServices $PWD/peer_scripts
+echo "Installed all required services" 
+}
+
+function startDockerServices(){
+  search_dir=$1
+  for entry in "$search_dir"/*
+    do
+      IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $entry $DOCKER_STACK 2>&1
+       if [ $? -ne 0 ]; then
+         echo "ERROR !!!! Unable to start network"
+         exit 1
+       fi
+    done
+
+}
+
+
+function startDockerServices(){
+  search_dir=$1
+  for entry in "$search_dir"/*
+    do
+      IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $entry $DOCKER_STACK 2>&1
+       if [ $? -ne 0 ]; then
+         echo "ERROR !!!! Unable to start network"
+         exit 1
+       fi
+    done
+
 }
 
 function execCli() {
@@ -220,32 +258,35 @@ function replacePrivateKey() {
     OPTS="-i"
   fi
 
+  CURRENT_DIR=$PWD
+  PEER_SCRIPTS_DIR=$PWD/peer_scripts
   # Copy the org1 & org2 templates to the files that will be modified to add the private key
   if [ "${IF_COUCHDB}" == "couchdb" ]; then
-    cp docker-compose-org1-couchdb-template.yaml docker-compose-org1-couchdb.yaml
-    cp docker-compose-org2-couchdb-template.yaml docker-compose-org2-couchdb.yaml
+    rm $PEER_SCRIPTS_DIR/*
+    cp docker-compose-org1-couchdb-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org1-couchdb.yaml
+    cp docker-compose-org2-couchdb-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org2-couchdb.yaml
   else
-    cp docker-compose-org1-template.yaml docker-compose-org1.yaml
-    cp docker-compose-org2-template.yaml docker-compose-org2.yaml
+    rm $PEER_SCRIPTS_DIR/*
+    cp docker-compose-org1-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org1.yaml
+    cp docker-compose-org2-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org2.yaml
   fi
   # The next steps will replace the template's contents with the
   # actual values of the private key file names for the two CAs.
-  CURRENT_DIR=$PWD
   cd crypto-config/peerOrganizations/org1.example.com/ca/
   PRIV_KEY=$(ls *_sk)
   cd "$CURRENT_DIR"
   if [ "${IF_COUCHDB}" == "couchdb" ]; then
-    sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" docker-compose-org1-couchdb.yaml
+    sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org1-couchdb.yaml
   else
-    sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" docker-compose-org1.yaml
+    sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org1.yaml
   fi
   cd crypto-config/peerOrganizations/org2.example.com/ca/
   PRIV_KEY=$(ls *_sk)
   cd "$CURRENT_DIR"
   if [ "${IF_COUCHDB}" == "couchdb" ]; then
-    sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" docker-compose-org2-couchdb.yaml
+    sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org2-couchdb.yaml
   else
-    sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" docker-compose-org2.yaml
+    sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org2.yaml
   fi
   # If MacOSX, remove the temporary backup of the docker-compose file
   if [ "$ARCH" == "Darwin" ]; then
