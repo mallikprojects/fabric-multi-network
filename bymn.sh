@@ -38,8 +38,8 @@ export SWARM_NETWORK="fabric"
 export DOCKER_STACK="fabric"
 export KAFKA0_HOSTNAME="node1"
 export KAFKA1_HOSTNAME="node2"
-export KAFKA2_HOSTNAME="nod3"
-export KAFKA3_HOSTNAME="node4"
+export KAFKA2_HOSTNAME="node3"
+export KAFKA3_HOSTNAME="orderer-duplicate"
 export ZK0_HOSTNAME="node1"
 export ZK1_HOSTNAME="node2"
 export ZK2_HOSTNAME="node3"
@@ -169,11 +169,11 @@ function networkUp() {
   CURRENT_DIR=$PWD
   ZK_DIR=$PWD/zk_scripts
   startDockerServices $PWD/zk_scripts
-  sleep 30
+  sleep 20
   startDockerServices $PWD/kafka_scripts
-  sleep 60
+  sleep 20
   startDockerServices $PWD/orderer_scripts
-  sleep 30
+  sleep 10
   startDockerServices $PWD/peer_scripts
 echo "Installed all required services" 
 }
@@ -183,6 +183,7 @@ function startDockerServices(){
   for entry in "$search_dir"/*
     do
       IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $entry $DOCKER_STACK 2>&1
+      Sleep 10
        if [ $? -ne 0 ]; then
          echo "ERROR !!!! Unable to start network"
          exit 1
