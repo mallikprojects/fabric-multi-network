@@ -23,9 +23,9 @@ services:
       - FABRIC_CA_SERVER_TLS_ENABLED=true
       - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.org1.example.com-cert.pem
       - FABRIC_CA_SERVER_TLS_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.org1.example.com-cert.pem
-      - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/CA1_PRIVATE_KEY
-      - FABRIC_CA_SERVER_TLS_KEYFILE=/etc/hyperledger/fabric-ca-server-config/CA1_PRIVATE_KEY
-    command: sh -c 'fabric-ca-server start --ca.certfile /etc/hyperledger/fabric-ca-server-config/ca.org1.example.com-cert.pem --ca.keyfile /etc/hyperledger/fabric-ca-server-config/CA1_PRIVATE_KEY  -b admin:adminpw -d'
+      - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/34e6d70da9f3beab205b7ca3464daca175249897b3b820110de74e99f93c233b_sk
+      - FABRIC_CA_SERVER_TLS_KEYFILE=/etc/hyperledger/fabric-ca-server-config/34e6d70da9f3beab205b7ca3464daca175249897b3b820110de74e99f93c233b_sk
+    command: sh -c 'fabric-ca-server start --ca.certfile /etc/hyperledger/fabric-ca-server-config/ca.org1.example.com-cert.pem --ca.keyfile /etc/hyperledger/fabric-ca-server-config/34e6d70da9f3beab205b7ca3464daca175249897b3b820110de74e99f93c233b_sk  -b admin:adminpw -d'
     volumes:
       - ../crypto-config/peerOrganizations/org1.example.com/ca/:/etc/hyperledger/fabric-ca-server-config
     container_name: ca1
@@ -47,10 +47,59 @@ services:
         aliases:
           - ca.org1.example.com
 
+  org1couchdb0:
+    container_name: org1couchdb0
+    image: hyperledger/fabric-couchdb
+    environment:
+      - COUCHDB_USER= couchdb
+      - COUCHDB_PASSWORD=couchdb123  
+    deploy:
+            mode: replicated
+            replicas: 1
+            restart_policy:
+              condition: on-failure
+            placement:
+                constraints:
+                    - node.hostname == $ORG1_HOSTNAME
+    ports:
+     - published: 5984 
+       target: 5984
+       mode: host
+    networks:
+      bymn:
+        aliases:
+          - couchdb0.org1.example.com
+  org1couchdb1:
+    container_name: org1couchdb1
+    image: hyperledger/fabric-couchdb
+    environment:
+      - COUCHDB_USER= couchdb
+      - COUCHDB_PASSWORD=couchdb123  
+    deploy:
+            mode: replicated
+            replicas: 1
+            restart_policy:
+              condition: on-failure
+            placement:
+                constraints:
+                    - node.hostname == $ORG1_HOSTNAME
+    ports:
+     - published: 5986 
+       target: 5984
+       mode: host
+    networks:
+      bymn:
+        aliases:
+          - couchdb1.org1.example.com
   org1peer0:
     container_name: org1peer0
     image: hyperledger/fabric-peer:$IMAGE_TAG
     environment:
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb0.org1.example.com:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=couchdb
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=couchdb123
+
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       # the following setting starts chaincode containers on the same
       # bridge network as the peers
@@ -108,6 +157,10 @@ services:
     container_name: org1peer1
     image: hyperledger/fabric-peer:$IMAGE_TAG
     environment:
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb1.org1.example.com:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=couchdb
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=couchdb123
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       # the following setting starts chaincode containers on the same
       # bridge network as the peers

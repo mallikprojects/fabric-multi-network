@@ -1,0 +1,57 @@
+# Copyright IBM Corp. All Rights Reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# Copyright IBM Corp. All Rights Reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+version: '3.4'
+
+volumes:
+  zookeeper1.example.com:
+networks:
+  bymn:
+    external:
+      name: $SWARM_NETWORK
+
+services:
+  zookeeper1:
+    image: hyperledger/fabric-zookeeper
+    environment:
+      #
+      # server.x=[hostname]:nnnnn[:nnnnn]
+      # The list of servers that make up the ZK ensemble. The list that is used
+      # by the clients must match the list of ZooKeeper servers that each ZK
+      # server has. There are two port numbers `nnnnn`. The first is what
+      # followers use to connect to the leader, while the second is for leader
+      # election.
+      - ZOO_SERVERS=server.1=zookeeper0.example.com:2888:3888 server.2=0.0.0.0:2888:3888  server.3=zookeeper2.example.com:2888:3888
+      - ZOO_MY_ID=2
+
+    deploy:
+            mode: replicated
+            replicas: 1
+            restart_policy:
+              condition: on-failure
+            placement:
+                constraints:
+                    - node.hostname == $ZK1_HOSTNAME
+
+    ports:
+            - published: 2181
+              target: 2181
+              mode: host
+            - published: 2888
+              target: 2888
+              mode: host
+            - published: 3888
+              target: 3888
+              mode: host
+    networks:
+      bymn:
+        aliases:
+          - zookeeper1.example.com
+           

@@ -47,10 +47,59 @@ services:
         aliases:
           - ca.org1.example.com
 
+  org1couchdb0:
+    container_name: org1couchdb0
+    image: hyperledger/fabric-couchdb
+    environment:
+      - COUCHDB_USER= couchdb
+      - COUCHDB_PASSWORD=couchdb123  
+    deploy:
+            mode: replicated
+            replicas: 1
+            restart_policy:
+              condition: on-failure
+            placement:
+                constraints:
+                    - node.hostname == $ORG1_HOSTNAME
+    ports:
+     - published: 5984 
+       target: 5984
+       mode: host
+    networks:
+      bymn:
+        aliases:
+          - couchdb0.org1.example.com
+  org1couchdb1:
+    container_name: org1couchdb1
+    image: hyperledger/fabric-couchdb
+    environment:
+      - COUCHDB_USER= couchdb
+      - COUCHDB_PASSWORD=couchdb123  
+    deploy:
+            mode: replicated
+            replicas: 1
+            restart_policy:
+              condition: on-failure
+            placement:
+                constraints:
+                    - node.hostname == $ORG1_HOSTNAME
+    ports:
+     - published: 5986 
+       target: 5984
+       mode: host
+    networks:
+      bymn:
+        aliases:
+          - couchdb1.org1.example.com
   org1peer0:
     container_name: org1peer0
     image: hyperledger/fabric-peer:$IMAGE_TAG
     environment:
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb0.org1.example.com:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=couchdb
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=couchdb123
+
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       # the following setting starts chaincode containers on the same
       # bridge network as the peers
@@ -108,6 +157,10 @@ services:
     container_name: org1peer1
     image: hyperledger/fabric-peer:$IMAGE_TAG
     environment:
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb1.org1.example.com:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=couchdb
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=couchdb123
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       # the following setting starts chaincode containers on the same
       # bridge network as the peers

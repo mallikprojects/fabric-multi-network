@@ -31,12 +31,20 @@
 export PATH=${PWD}/../bin:${PWD}:$PATH
 export FABRIC_CFG_PATH=${PWD}
 export VERBOSE=false
-export ORDERER_HOSTNAME="orderer-node"
-export ORG1_HOSTNAME="org1"
-export ORG2_HOSTNAME="org2"
+export ORDERER_HOSTNAME="node1"
+export ORG1_HOSTNAME="node2"
+export ORG2_HOSTNAME="node3"
 export SWARM_NETWORK="fabric"
 export DOCKER_STACK="fabric"
+export KAFKA0_HOSTNAME="node1"
+export KAFKA1_HOSTNAME="node2"
+export KAFKA2_HOSTNAME="node3"
+export KAFKA3_HOSTNAME="orderer-duplicate"
+export ZK0_HOSTNAME="node1"
+export ZK1_HOSTNAME="node2"
+export ZK2_HOSTNAME="node3"
 
+NETWORK_STATUS=0
 # Print the usage message
 function printHelp() {
   echo "Usage: "
@@ -52,6 +60,7 @@ function printHelp() {
   echo "    -f <docker-compose-file> - specify which docker-compose file use (defaults to docker-compose-cli.yaml)"
   echo "    -i <imagetag> - the tag to be used to launch the network (defaults to \"latest\")"
   echo "    -v - verbose mode"
+  echo "    -e <0/1> - 0 for new network , 1 -existing network"
   echo "  bymn.sh -h (print this message)"
   echo
   echo "Typically, one would first generate the required certificates and "
@@ -112,7 +121,7 @@ function removeUnwantedImages() {
 }
 
 # Versions of fabric known not to work with this release of first-network
-BLACKLISTED_VERSIONS="^1\.0\. ^1\.1\.0-preview ^1\.1\.0-alpha"
+BLACKLISTED_VERSIONS="^1\.0\. ^1\.1\.0-preview ^1\.1\.0-alpha ^1\.1\."
 
 # Do some basic sanity checking to make sure that the appropriate versions of fabric
 # binaries/images are available.  In the future, additional checking for the presence
@@ -157,12 +166,44 @@ function networkUp() {
     replacePrivateKey
     generateChannelArtifacts
   fi
-  IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $COMPOSE_FILE $DOCKER_STACK 2>&1
-  if [ $? -ne 0 ]; then
-    echo "ERROR !!!! Unable to start network"
-    exit 1
-  fi
-  
+  CURRENT_DIR=$PWD
+  ZK_DIR=$PWD/zk_scripts
+  startDockerServices $PWD/zk_scripts
+  sleep 20
+  startDockerServices $PWD/kafka_scripts
+  sleep 20
+  startDockerServices $PWD/orderer_scripts
+  sleep 10
+  startDockerServices $PWD/peer_scripts
+echo "Installed all required services" 
+}
+
+function startDockerServices(){
+  search_dir=$1
+  for entry in "$search_dir"/*
+    do
+      IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $entry $DOCKER_STACK 2>&1
+      Sleep 10
+       if [ $? -ne 0 ]; then
+         echo "ERROR !!!! Unable to start network"
+         exit 1
+       fi
+    done
+
+}
+
+
+function startDockerServices(){
+  search_dir=$1
+  for entry in "$search_dir"/*
+    do
+      IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $entry $DOCKER_STACK 2>&1
+       if [ $? -ne 0 ]; then
+         echo "ERROR !!!! Unable to start network"
+         exit 1
+       fi
+    done
+
 }
 
 function execCli() {
@@ -193,10 +234,15 @@ function networkDown() {
     #Cleanup images
     removeUnwantedImages
     # remove orderer block and other channel configuration transactions and certs
-    rm -rf channel-artifacts/*.block channel-artifacts/*.tx crypto-config ./org3-artifacts/crypto-config/ channel-artifacts/org3.json
+    #rm -rf channel-artifacts/*.block channel-artifacts/*.tx crypto-config ./org3-artifacts/crypto-config/ channel-artifacts/org3.json
     # remove the docker-compose yaml file that was customized to the example
-    rm -f docker-compose-org1.yaml
-    rm -f docker-compose-org2.yaml
+    #rm -f docker-compose-org1.yaml
+    #rm -f docker-compose-org2.yaml
+    docker system prune
+    docker volume prune
+    #docker swarm leave -f
+    docker rmi $(docker images -a -q) -f
+    docker rm $(docker ps -aq) -f
   fi
 }
 
@@ -213,21 +259,36 @@ function replacePrivateKey() {
     OPTS="-i"
   fi
 
+  CURRENT_DIR=$PWD
+  PEER_SCRIPTS_DIR=$PWD/peer_scripts
   # Copy the org1 & org2 templates to the files that will be modified to add the private key
-  cp docker-compose-org1-template.yaml docker-compose-org1.yaml
-  cp docker-compose-org2-template.yaml docker-compose-org2.yaml
-
+  if [ "${IF_COUCHDB}" == "couchdb" ]; then
+    rm $PEER_SCRIPTS_DIR/*
+    cp docker-compose-org1-couchdb-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org1-couchdb.yaml
+    cp docker-compose-org2-couchdb-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org2-couchdb.yaml
+  else
+    rm $PEER_SCRIPTS_DIR/*
+    cp docker-compose-org1-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org1.yaml
+    cp docker-compose-org2-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org2.yaml
+  fi
   # The next steps will replace the template's contents with the
   # actual values of the private key file names for the two CAs.
-  CURRENT_DIR=$PWD
   cd crypto-config/peerOrganizations/org1.example.com/ca/
   PRIV_KEY=$(ls *_sk)
   cd "$CURRENT_DIR"
-  sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" docker-compose-org1.yaml
+  if [ "${IF_COUCHDB}" == "couchdb" ]; then
+    sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org1-couchdb.yaml
+  else
+    sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org1.yaml
+  fi
   cd crypto-config/peerOrganizations/org2.example.com/ca/
   PRIV_KEY=$(ls *_sk)
   cd "$CURRENT_DIR"
-  sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" docker-compose-org2.yaml
+  if [ "${IF_COUCHDB}" == "couchdb" ]; then
+    sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org2-couchdb.yaml
+  else
+    sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org2.yaml
+  fi
   # If MacOSX, remove the temporary backup of the docker-compose file
   if [ "$ARCH" == "Darwin" ]; then
     rm docker-compose-org1.yamlt
@@ -253,7 +314,12 @@ function replacePrivateKey() {
 # After we run the tool, the certs will be parked in a folder titled ``crypto-config``.
 
 # Generates Org certs using cryptogen tool
+
 function generateCerts() {
+  if [ $NETWORK_STATUS -eq 1 ]; then
+    echo "Network Exists. so Skipping generateCerts"
+    return 0
+  fi 
   which cryptogen
   if [ "$?" -ne 0 ]; then
     echo "cryptogen tool not found. exiting"
@@ -317,6 +383,10 @@ function generateCerts() {
 # Generate orderer genesis block, channel configuration transaction and
 # anchor peer update transactions
 function generateChannelArtifacts() {
+  if [ $NETWORK_STATUS -eq 1 ]; then
+    echo "Network Exists. so Skipping generateChannelArtifacts..."
+    return 0
+  fi
   which configtxgen
   if [ "$?" -ne 0 ]; then
     echo "configtxgen tool not found. exiting"
@@ -398,7 +468,7 @@ COMPOSE_FILE_ORG3=docker-compose-org3.yaml
 # use golang as the default language for chaincode
 LANGUAGE=golang
 # default image tag
-IMAGETAG="1.1.0"
+IMAGETAG="1.2.0"
 # Parse commandline args
 if [ "$1" = "-m" ]; then # supports old usage, muscle memory is powerful!
   shift
@@ -425,7 +495,7 @@ fi
 
 ROLE=$2
 
-while getopts "h?c:t:d:f:s:l:i:v" opt; do
+while getopts "h?c:t:d:f:s:l:i:e:v" opt; do
   case "$opt" in
   h | \?)
     printHelp
@@ -452,9 +522,13 @@ while getopts "h?c:t:d:f:s:l:i:v" opt; do
   i)
     IMAGETAG=$(go env GOARCH)"-"$OPTARG
     ;;
+  e)
+    NETWORK_STATUS=$OPTARG
+    ;;
   v)
     VERBOSE=true
     ;;
+
   esac
 done
 
