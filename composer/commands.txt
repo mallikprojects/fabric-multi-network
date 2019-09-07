@@ -1,0 +1,4 @@
+export ORG1_CA_CERT=$(awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' ../crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt)    
+perl -p -i -e 's@INSERT_ORG1_CA_CERT@$ENV{ORG1_CA_CERT}@g' connection.json
+export ORDERER_CA_CERT=$(awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' ../crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt orderer-ca.crt)    
+perl -p -i -e 's@INSERT_ORDERER_CA_CERT@$ENV{ORG1_CA_CERT}@g' connection.json

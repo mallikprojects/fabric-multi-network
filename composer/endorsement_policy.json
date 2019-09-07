@@ -1,0 +1,23 @@
+ {
+    "identities": [
+        {
+            "role": {
+                "name": "member",
+                "mspId": "Org1MSP"
+            }
+        }
+    ],
+    "policy": {
+        "3-of": [
+            {
+                "signed-by": 0
+            },
+            {
+                "signed-by": 0
+            },
+            {
+                "signed-by": 0
+            }
+        ]
+    }
+}

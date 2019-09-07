@@ -28,27 +28,28 @@
 
 # prepending $PWD/../bin to PATH to ensure we are picking up the correct binaries
 # this may be commented out to resolve installed version of tools if desired
-export PATH=${PWD}/../bin:${PWD}:$PATH
+export PATH=${PWD}/../fabric-samples/bin:${PWD}:$PATH
 export FABRIC_CFG_PATH=${PWD}
 export VERBOSE=false
-export ORDERER_HOSTNAME="node1"
-export ORG1_HOSTNAME="node2"
-export ORG2_HOSTNAME="node3"
+export ORDERER0_HOSTNAME="orderer-duplicate"
+export ORDERER1_HOSTNAME="arete"
+export ORG1_HOSTNAME="org1"
+export ORG2_HOSTNAME="org2"
 export SWARM_NETWORK="fabric"
 export DOCKER_STACK="fabric"
-export KAFKA0_HOSTNAME="node1"
-export KAFKA1_HOSTNAME="node2"
-export KAFKA2_HOSTNAME="node3"
-export KAFKA3_HOSTNAME="orderer-duplicate"
-export ZK0_HOSTNAME="node1"
-export ZK1_HOSTNAME="node2"
-export ZK2_HOSTNAME="node3"
+export KAFKA0_HOSTNAME="orderer-duplicate"
+export KAFKA1_HOSTNAME="org1"
+export KAFKA2_HOSTNAME="org2"
+export KAFKA3_HOSTNAME="arete"
+export ZK0_HOSTNAME="orderer-duplicate"
+export ZK1_HOSTNAME="org1"
+export ZK2_HOSTNAME="org2"
+SYS_CHANNEL="bymn-sys-channel"
 
-NETWORK_STATUS=0
 # Print the usage message
 function printHelp() {
   echo "Usage: "
-  echo "  bymn.sh <mode> [-c <channel name>] [-t <timeout>] [-d <delay>] [-f <docker-compose-file>] [-s <dbtype>] [-l <language>] [-i <imagetag>] [-v]"
+  echo "  bymn.sh <mode> [-c <channel name>] [-t <timeout>] [-d <delay>] [-f <docker-compose-file>] [-s <dbtype>] [-l <language>] [-i <imagetag>] [-o consensus type] [-a certificate_authorirites] [-v]"
   echo "    <mode> - one of 'up', 'down', 'restart', 'generate' or 'upgrade'"
   echo "      - 'up' - bring up the network with docker stack deploy"
   echo "      - 'down' - clear the network with docker stack rm"
@@ -59,8 +60,9 @@ function printHelp() {
   echo "    -d <delay> - delay duration in seconds (defaults to 3)"
   echo "    -f <docker-compose-file> - specify which docker-compose file use (defaults to docker-compose-cli.yaml)"
   echo "    -i <imagetag> - the tag to be used to launch the network (defaults to \"latest\")"
+  echo "    -o <consensus type> - solo,kafka,etcdraft. defaults to \"solo\")"
+  echo "    -a <certificate authoritity> - with or without certificate authority defaults to \"solo\")"
   echo "    -v - verbose mode"
-  echo "    -e <0/1> - 0 for new network , 1 -existing network"
   echo "  bymn.sh -h (print this message)"
   echo
   echo "Typically, one would first generate the required certificates and "
@@ -168,30 +170,32 @@ function networkUp() {
   fi
   CURRENT_DIR=$PWD
   ZK_DIR=$PWD/zk_scripts
-  startDockerServices $PWD/zk_scripts
-  sleep 20
-  startDockerServices $PWD/kafka_scripts
-  sleep 20
+  if [ "${CONSENSUS_TYPE}" == "kafka" ]; then
+    startDockerServices $PWD/zk_scripts
+    sleep 30
+    startDockerServices $PWD/kafka_scripts
+    echo "Sleeping 60s to allow $CONSENSUS_TYPE cluster to complete booting"
+    sleep 60
+  elif [ "${CONSENSUS_TYPE}" == "etcdraft" ]; then
+    startDockerServices $PWD/etcdraft_scripts
+    echo "Sleeping 30s to allow $CONSENSUS_TYPE cluster to complete booting"
+    sleep 30
+  fi
   startDockerServices $PWD/orderer_scripts
-  sleep 10
-  startDockerServices $PWD/peer_scripts
-echo "Installed all required services" 
+  sleep 30
+  if [ "${CERTIFICATE_AUTHORITIES}" == "true" ]; then
+    startDockerServices $PWD/ca_scripts
+    sleep 30
+  fi
+  if [ "${IF_COUCHDB}" == "couchdb" ]; then
+    startDockerServices $PWD/peer_scripts_with_couchdb
+  else
+    startDockerServices $PWD/peer_scripts
+  fi
+  echo "Installed all required services"
+  
+  
 }
-
-function startDockerServices(){
-  search_dir=$1
-  for entry in "$search_dir"/*
-    do
-      IMAGE_TAG=$IMAGETAG docker stack deploy --compose-file $entry $DOCKER_STACK 2>&1
-      Sleep 10
-       if [ $? -ne 0 ]; then
-         echo "ERROR !!!! Unable to start network"
-         exit 1
-       fi
-    done
-
-}
-
 
 function startDockerServices(){
   search_dir=$1
@@ -223,7 +227,7 @@ function execCli() {
 function networkDown() {
   # stop org3 containers also in addition to org1 and org2, in case we were running sample to add org3
   docker stack rm $DOCKER_STACK
-
+  #docker network rm $DOCKER_STACK
   # Don't remove the generated artifacts -- note, the ledgers are always removed
   if [ "$MODE" != "restart" ]; then
     # Bring down the network, deleting the volumes
@@ -236,13 +240,13 @@ function networkDown() {
     # remove orderer block and other channel configuration transactions and certs
     #rm -rf channel-artifacts/*.block channel-artifacts/*.tx crypto-config ./org3-artifacts/crypto-config/ channel-artifacts/org3.json
     # remove the docker-compose yaml file that was customized to the example
-    #rm -f docker-compose-org1.yaml
-    #rm -f docker-compose-org2.yaml
-    docker system prune
-    docker volume prune
-    #docker swarm leave -f
-    docker rmi $(docker images -a -q) -f
-    docker rm $(docker ps -aq) -f
+    #rm -f docker-compose-ca.yaml
+   docker system prune
+   docker volume prune
+   #docker swarm leave -f
+   docker rmi $(docker images -a -q) -f
+   docker rm $(docker ps -aq) -f
+   
   fi
 }
 
@@ -260,39 +264,25 @@ function replacePrivateKey() {
   fi
 
   CURRENT_DIR=$PWD
-  PEER_SCRIPTS_DIR=$PWD/peer_scripts
+  TEMPLATE_DIR=$PWD/templates
+  CA_SCRIPTS_DIR=$PWD/ca_scripts
   # Copy the org1 & org2 templates to the files that will be modified to add the private key
-  if [ "${IF_COUCHDB}" == "couchdb" ]; then
-    rm $PEER_SCRIPTS_DIR/*
-    cp docker-compose-org1-couchdb-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org1-couchdb.yaml
-    cp docker-compose-org2-couchdb-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org2-couchdb.yaml
-  else
-    rm $PEER_SCRIPTS_DIR/*
-    cp docker-compose-org1-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org1.yaml
-    cp docker-compose-org2-template.yaml $PEER_SCRIPTS_DIR/docker-compose-org2.yaml
-  fi
+  cp $TEMPLATE_DIR/docker-compose-ca-template.yaml $CA_SCRIPTS_DIR/docker-compose-ca.yaml
+  
   # The next steps will replace the template's contents with the
   # actual values of the private key file names for the two CAs.
   cd crypto-config/peerOrganizations/org1.example.com/ca/
   PRIV_KEY=$(ls *_sk)
   cd "$CURRENT_DIR"
-  if [ "${IF_COUCHDB}" == "couchdb" ]; then
-    sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org1-couchdb.yaml
-  else
-    sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org1.yaml
-  fi
-  cd crypto-config/peerOrganizations/org2.example.com/ca/
+  sed $OPTS "s/CA1_PRIVATE_KEY/${PRIV_KEY}/g" ca_scripts/docker-compose-ca.yaml
+   cd crypto-config/peerOrganizations/org2.example.com/ca/
   PRIV_KEY=$(ls *_sk)
   cd "$CURRENT_DIR"
-  if [ "${IF_COUCHDB}" == "couchdb" ]; then
-    sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org2-couchdb.yaml
-  else
-    sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" peer_scripts/docker-compose-org2.yaml
-  fi
+  sed $OPTS "s/CA2_PRIVATE_KEY/${PRIV_KEY}/g" ca_scripts/docker-compose-ca.yaml
   # If MacOSX, remove the temporary backup of the docker-compose file
   if [ "$ARCH" == "Darwin" ]; then
-    rm docker-compose-org1.yamlt
-    rm docker-compose-org2.yamlt
+    rm docker-compose-ca.yamlt
+    
   fi
 }
 
@@ -314,12 +304,7 @@ function replacePrivateKey() {
 # After we run the tool, the certs will be parked in a folder titled ``crypto-config``.
 
 # Generates Org certs using cryptogen tool
-
 function generateCerts() {
-  if [ $NETWORK_STATUS -eq 1 ]; then
-    echo "Network Exists. so Skipping generateCerts"
-    return 0
-  fi 
   which cryptogen
   if [ "$?" -ne 0 ]; then
     echo "cryptogen tool not found. exiting"
@@ -342,7 +327,10 @@ function generateCerts() {
     exit 1
   fi
   echo
+  #echo "Generate CCP files for Org1 and Org2"
+  #./ccp-generate.sh
 }
+
 
 # The `configtxgen tool is used to create four artifacts: orderer **bootstrap
 # block**, fabric **channel configuration transaction**, and two **anchor
@@ -382,11 +370,8 @@ function generateCerts() {
 
 # Generate orderer genesis block, channel configuration transaction and
 # anchor peer update transactions
+
 function generateChannelArtifacts() {
-  if [ $NETWORK_STATUS -eq 1 ]; then
-    echo "Network Exists. so Skipping generateChannelArtifacts..."
-    return 0
-  fi
   which configtxgen
   if [ "$?" -ne 0 ]; then
     echo "configtxgen tool not found. exiting"
@@ -398,8 +383,19 @@ function generateChannelArtifacts() {
   echo "##########################################################"
   # Note: For some unknown reason (at least for now) the block file can't be
   # named orderer.genesis.block or the orderer will fail to launch!
+  echo "CONSENSUS_TYPE="$CONSENSUS_TYPE
   set -x
-  configtxgen -profile TwoOrgsOrdererGenesis -outputBlock ./channel-artifacts/genesis.block
+  if [ "$CONSENSUS_TYPE" == "solo" ]; then
+    configtxgen -profile TwoOrgsOrdererGenesis -channelID $SYS_CHANNEL -outputBlock ./channel-artifacts/genesis.block
+  elif [ "$CONSENSUS_TYPE" == "kafka" ]; then
+    configtxgen -profile SampleDevModeKafka -channelID $SYS_CHANNEL -outputBlock ./channel-artifacts/genesis.block
+  elif [ "$CONSENSUS_TYPE" == "etcdraft" ]; then
+    configtxgen -profile SampleMultiNodeEtcdRaft -channelID $SYS_CHANNEL -outputBlock ./channel-artifacts/genesis.block
+  else
+    set +x
+    echo "unrecognized CONSESUS_TYPE='$CONSENSUS_TYPE'. exiting"
+    exit 1
+  fi
   res=$?
   set +x
   if [ $res -ne 0 ]; then
@@ -448,6 +444,22 @@ function generateChannelArtifacts() {
   echo
 }
 
+  #echo
+  #echo "#################################################################"
+  #echo "#######    Generating anchor peer update for Org2MSP   ##########"
+  #echo "#################################################################"
+  #set -x
+  #configtxgen -profile TwoOrgsChannel -outputAnchorPeersUpdate \
+  #  ./channel-artifacts/Org2MSPanchors.tx -channelID $CHANNEL_NAME -asOrg Org2MSP
+  #res=$?
+  #set +x
+  #if [ $res -ne 0 ]; then
+  #  echo "Failed to generate anchor peer update for Org2MSP..."
+  #  exit 1
+  #fi
+  #echo
+
+
 # Obtain the OS and Architecture string that will be used to select the correct
 # native binaries for your platform, e.g., darwin-amd64 or linux-amd64
 OS_ARCH=$(echo "$(uname -s | tr '[:upper:]' '[:lower:]' | sed 's/mingw64_nt.*/windows/')-$(uname -m | sed 's/x86_64/amd64/g')" | awk '{print tolower($0)}')
@@ -468,7 +480,10 @@ COMPOSE_FILE_ORG3=docker-compose-org3.yaml
 # use golang as the default language for chaincode
 LANGUAGE=golang
 # default image tag
-IMAGETAG="1.2.0"
+IMAGETAG="latest"
+# default consensus type
+CONSENSUS_TYPE="solo"
+
 # Parse commandline args
 if [ "$1" = "-m" ]; then # supports old usage, muscle memory is powerful!
   shift
@@ -495,7 +510,7 @@ fi
 
 ROLE=$2
 
-while getopts "h?c:t:d:f:s:l:i:e:v" opt; do
+while getopts "h?c:t:d:f:s:l:i:v:o:a" opt; do
   case "$opt" in
   h | \?)
     printHelp
@@ -522,13 +537,15 @@ while getopts "h?c:t:d:f:s:l:i:e:v" opt; do
   i)
     IMAGETAG=$(go env GOARCH)"-"$OPTARG
     ;;
-  e)
-    NETWORK_STATUS=$OPTARG
+  o)
+    CONSENSUS_TYPE=$OPTARG
+    ;;
+  a)
+    CERTIFICATE_AUTHORITIES=true
     ;;
   v)
     VERBOSE=true
     ;;
-
   esac
 done
 
