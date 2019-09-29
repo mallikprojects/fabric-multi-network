@@ -1,1 +1,1 @@
-### Refer to Installation guide for installing and configuring Apache kafka with Hyperledger Fabric 1.2 and Composer 0.20.0
+### Refer to https://medium.com/@malliksarvepalli/hyperledger-fabric-1-4-on-multiple-hosts-using-docker-swarm-and-compose-ec668db0bad5 for deployment instructions
